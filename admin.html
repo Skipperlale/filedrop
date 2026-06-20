@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileDrop — Admin Upload</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#171a21;
+    --border:#272b33;
+    --text:#e8e9ec;
+    --muted:#9aa0ac;
+    --accent:#4f8cff;
+    --accent-hover:#6ea0ff;
+    --success:#3ddc84;
+    --danger:#ff5d6c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:48px 16px;
+  }
+  .wrap{width:100%; max-width:560px;}
+  h1{font-size:1.6rem; margin-bottom:4px;}
+  p.sub{color:var(--muted); margin-top:0; margin-bottom:28px; font-size:0.95rem;}
+  .badge{
+    display:inline-block;
+    background:rgba(255,93,108,0.15);
+    color:var(--danger);
+    font-size:0.75rem;
+    font-weight:700;
+    padding:3px 8px;
+    border-radius:5px;
+    margin-bottom:18px;
+    letter-spacing:0.04em;
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:24px;
+    margin-bottom:20px;
+  }
+  .panel h2{
+    font-size:1rem;
+    margin:0 0 14px 0;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    font-weight:600;
+  }
+  label{display:block; font-size:0.85rem; margin-bottom:6px; color:var(--muted);}
+  input[type=text], input[type=password]{
+    width:100%;
+    padding:10px 12px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:#0f1115;
+    color:var(--text);
+    font-size:0.9rem;
+    margin-bottom:14px;
+  }
+  input:focus{outline:none; border-color:var(--accent);}
+  .dropzone{
+    border:2px dashed var(--border);
+    border-radius:10px;
+    padding:32px 16px;
+    text-align:center;
+    color:var(--muted);
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .dropzone.drag{border-color:var(--accent); background:rgba(79,140,255,0.06);}
+  .dropzone input{display:none;}
+  button{
+    width:100%;
+    padding:12px;
+    border-radius:8px;
+    border:none;
+    background:var(--accent);
+    color:#fff;
+    font-size:0.95rem;
+    font-weight:600;
+    cursor:pointer;
+    margin-top:14px;
+    transition:background .15s;
+  }
+  button:hover{background:var(--accent-hover);}
+  button:disabled{background:#3a3f4b; cursor:not-allowed;}
+  .status{margin-top:14px; font-size:0.88rem; color:var(--muted);}
+  .status.ok{color:var(--success);}
+  .status.err{color:var(--danger);}
+  .hint{font-size:0.78rem; color:var(--muted); margin-top:-8px; margin-bottom:14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>FileDrop — Admin</h1>
+  <div class="badge">PRIVATE — DO NOT SHARE THIS PAGE</div>
+  <p class="sub">Upload files here. They'll automatically appear on the public download page.</p>
+
+  <div class="panel">
+    <h2>Your GitHub Token</h2>
+    <label for="token">Personal Access Token</label>
+    <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+    <div class="hint">Stored only in your browser. Needs the "repo" scope.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Upload a file</h2>
+    <div class="dropzone" id="dropzone">
+      <span id="dzText">Click to choose a file, or drag one here</span>
+      <input type="file" id="fileInput">
+    </div>
+    <button id="uploadBtn" disabled>Upload</button>
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<script>
+// Repo details
+const OWNER = "Skipperlale";
+const REPO = "filedrop";
+const BRANCH = "main";
+const FOLDER = "uploads";
+
+const tokenInput = document.getElementById('token');
+const fileInput = document.getElementById('fileInput');
+const dropzone = document.getElementById('dropzone');
+const dzText = document.getElementById('dzText');
+const uploadBtn = document.getElementById('uploadBtn');
+const statusEl = document.getElementById('status');
+
+tokenInput.value = localStorage.getItem('fd_token') || '';
+tokenInput.addEventListener('input', () => localStorage.setItem('fd_token', tokenInput.value));
+
+let selectedFile = null;
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) {
+    selectedFile = e.dataTransfer.files[0];
+    dzText.textContent = selectedFile.name;
+    uploadBtn.disabled = false;
+  }
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) {
+    selectedFile = fileInput.files[0];
+    dzText.textContent = selectedFile.name;
+    uploadBtn.disabled = false;
+  }
+});
+
+function setStatus(msg, type) {
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (type ? ' ' + type : '');
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+uploadBtn.addEventListener('click', async () => {
+  const token = tokenInput.value.trim();
+
+  if (!token || !selectedFile) {
+    setStatus('Please add your token and choose a file.', 'err');
+    return;
+  }
+
+  uploadBtn.disabled = true;
+  setStatus('Uploading...');
+
+  try {
+    const buffer = await selectedFile.arrayBuffer();
+    const base64Content = arrayBufferToBase64(buffer);
+    const safeName = selectedFile.name.replace(/\s+/g, '_');
+    const path = `${FOLDER}/${Date.now()}_${safeName}`;
+
+    const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: `Upload ${selectedFile.name}`,
+        content: base64Content,
+        branch: BRANCH
+      })
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || `Upload failed (status ${res.status})`);
+    }
+
+    setStatus(`Uploaded "${selectedFile.name}" successfully. It will now show up on the public download page.`, 'ok');
+    selectedFile = null;
+    dzText.textContent = 'Click to choose a file, or drag one here';
+    fileInput.value = '';
+  } catch (err) {
+    setStatus('Error: ' + err.message, 'err');
+  } finally {
+    uploadBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

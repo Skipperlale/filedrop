@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileDrop — Downloads</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#171a21;
+    --border:#272b33;
+    --text:#e8e9ec;
+    --muted:#9aa0ac;
+    --accent:#4f8cff;
+    --accent-hover:#6ea0ff;
+    --danger:#ff5d6c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:48px 16px;
+  }
+  .wrap{width:100%; max-width:640px;}
+  h1{font-size:1.6rem; margin-bottom:4px;}
+  p.sub{color:var(--muted); margin-top:0; margin-bottom:28px; font-size:0.95rem;}
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:8px;
+  }
+  .file-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 16px;
+    border-bottom:1px solid var(--border);
+  }
+  .file-row:last-child{border-bottom:none;}
+  .file-name{
+    font-size:0.92rem;
+    word-break:break-all;
+    margin-right:12px;
+  }
+  .file-row a{
+    flex-shrink:0;
+    background:var(--accent);
+    color:#fff;
+    text-decoration:none;
+    padding:8px 14px;
+    border-radius:6px;
+    font-size:0.85rem;
+    font-weight:600;
+    transition:background .15s;
+  }
+  .file-row a:hover{background:var(--accent-hover);}
+  .empty, .loading, .error{
+    padding:24px 16px;
+    color:var(--muted);
+    text-align:center;
+    font-size:0.9rem;
+  }
+  .error{color:var(--danger);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>FileDrop</h1>
+  <p class="sub">Files shared here are available to download below.</p>
+  <div class="panel" id="fileList">
+    <div class="loading">Loading files...</div>
+  </div>
+</div>
+
+<script>
+// Repo details
+const OWNER = "Skipperlale";
+const REPO = "filedrop";
+const BRANCH = "main";
+const FOLDER = "uploads";
+
+const fileListEl = document.getElementById('fileList');
+
+async function loadFiles() {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FOLDER}?ref=${BRANCH}`);
+    if (res.status === 404) {
+      fileListEl.innerHTML = '<div class="empty">No files have been uploaded yet.</div>';
+      return;
+    }
+    if (!res.ok) {
+      throw new Error(`GitHub API error (status ${res.status})`);
+    }
+    const items = await res.json();
+    const files = items.filter(item => item.type === 'file');
+
+    if (files.length === 0) {
+      fileListEl.innerHTML = '<div class="empty">No files have been uploaded yet.</div>';
+      return;
+    }
+
+    // Sort newest first (filenames are timestamp-prefixed by the admin uploader)
+    files.sort((a, b) => b.name.localeCompare(a.name));
+
+    fileListEl.innerHTML = files.map(file => {
+      const rawUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${FOLDER}/${encodeURIComponent(file.name)}`;
+      const displayName = file.name.replace(/^\d+_/, ''); // strip timestamp prefix for display
+      return `<div class="file-row">
+        <span class="file-name">${displayName}</span>
+        <a href="${rawUrl}" download>Download</a>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    fileListEl.innerHTML = `<div class="error">Could not load files: ${err.message}</div>`;
+  }
+}
+
+loadFiles();
+</script>
+</body>
+</html>
